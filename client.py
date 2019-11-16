@@ -1,9 +1,11 @@
+from typing import List
+
 import requests
 from sgqlc.endpoint.http import HTTPEndpoint
 from sgqlc.operation import Operation
 
 import helpling_schema
-from query_strings import fetch_candidates, transition_to_provider_selection
+from query_strings import transition_to_provider_selection
 
 BASE_URL = "https://www.helpling.de/api/"
 gql_endpoint = HTTPEndpoint(BASE_URL + "v2/rr", base_headers={
@@ -57,31 +59,30 @@ def create_bid(postcode: int, **kwargs) -> str:
     return bid_id
 
 
-def get_candidates(bid_id: str):
-    response = requests.post(BASE_URL + "v2/rr", json={
-        "query": fetch_candidates,
-        "variables": {
-            "bidCode": bid_id,
-            "endCursor": "",
-            "ironing": False,
-            "maxPrice": 10000,
-            "minBookings": 0,
-            "minPrice": 0,
-            "minRating": 1,
-            "pets": False,
-            "sort": "relevance"
-        }
-    })
-    return response.json().get("data").get("customerBid").get("potentialCandidates")
+def get_candidates_for_bid(bid_id: str) -> List[helpling_schema.DecoratedPotentialCandidateEdge]:
+    op = Operation(helpling_schema.Query)
+
+    candidates = op.customer_bid(code=bid_id).potential_candidates(first=1000)
+
+    candidates.edges.node.price_per_hour()
+
+    provider = candidates.edges.node.provider
+    provider.__fields__("id", "firstname", "shortname", "default_profile_image", "pets", "windows", "ironing",
+                        "ratings_received_count", "verification_level", "documents", "performed_cleanings_count",
+                        "language_skills", "instabook_enabled")
+    provider.avg_rating.total()
+    provider.experience.__fields__()
+    provider.distance_to_bid(bid_code=bid_id)
+
+    data = gql_endpoint(op)
+
+    return (op + data).customer_bid.potential_candidates.edges
 
 
 def get_bid(bid_id: str) -> helpling_schema.CustomerBid:
     op = Operation(helpling_schema.Query)
 
-    bid = op.customer_bid(code=bid_id)
-    bid.code()
-    bid.duration()
-    bid.start_time()
+    op.customer_bid(code=bid_id).__fields__("code", "duration", "start_time")
 
     data = gql_endpoint(op)
     return (op + data).customer_bid
@@ -89,5 +90,5 @@ def get_bid(bid_id: str) -> helpling_schema.CustomerBid:
 
 if __name__ == "__main__":
     new_bid = create_bid(10179, time="11:30")
-    get_bid(new_bid)
-    # print(json.dumps(get_candidates(bid), indent=4))
+    # get_bid(new_bid)
+    print(get_candidates_for_bid(new_bid))
