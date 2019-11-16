@@ -5,34 +5,33 @@ from sgqlc.endpoint.http import HTTPEndpoint
 from sgqlc.operation import Operation
 
 import helpling_schema
-from query_strings import transition_to_provider_selection
 
 BASE_URL = "https://www.helpling.de/api/"
+
+DEFAULT_SEARCH_PARAMETERS = {
+    "time": "14:00null",
+    "date": "30/11/2019",
+    "repeat": "true",
+    "frequency": "week",
+    "duration": 12600,
+    "ironing": False,
+    "pets": False,
+    "materials_required": False,
+    "workday_flexibility": False,
+    "provider_type": "",
+    "notes": ""
+}
+
 gql_endpoint = HTTPEndpoint(BASE_URL + "v2/rr", base_headers={
     # CloudFlare blocks the default user agent. Pretend to be IE 6.
     "User-Agent": "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)"
 })
 
 
-class TransitionBidToProviderSelection:
-    def __init__(self):
-        self.date = "18/11/2019"
-        self.duration = 12600
-        self.frequency = "week"
-        self.ironing = False
-        self.materialsRequired = False
-        self.notes = ""
-        self.pets = False
-        self.providerType = ""
-        self.repeat = True
-        self.time = "14:00null"
-        self.workdayFlexibility = False
-
-
 def create_bid(postcode: int, **kwargs) -> str:
     """
-    Query the helpling API to create a new bid. Then, set the given parameters (or default values) to it.
-    This is the first step to scraping offers for a region.
+    Query the helpling API to create a new bid. Then, set the given parameters (or default values configured in
+    ``DEFAULT_SEARCH_PARAMETERS``) to it. This is the first step to scraping offers for a region.
     :param postcode: The postcode for which to request a new bid
     :param kwargs: The parameters to set for the search.
     :return: The bidCode of the created bid
@@ -42,19 +41,17 @@ def create_bid(postcode: int, **kwargs) -> str:
 
     if bid_id is None:
         raise Exception("Bid for postcode " + str(postcode) + " could not be created: " + response.text)
-
     print("Create bid for " + str(postcode) + " (" + bid_id + "): OK")
 
-    variable_defaults = TransitionBidToProviderSelection().__dict__
-    response = requests.post(BASE_URL + "/v2/rr", json={
-        "query": transition_to_provider_selection,
-        "variables": {**variable_defaults, **kwargs, "bidCode": bid_id}
-    })
+    op = Operation(helpling_schema.Mutation)
+    op.transition_bid_to_provider_selection(**{**DEFAULT_SEARCH_PARAMETERS, **kwargs, "bid_code": bid_id})
 
-    if response.json().get("errors") is not None:
-        raise Exception("Bid " + bid_id + " could not be parametrized: " + response.text)
+    result = gql_endpoint(op).get("data").get("transitionBidToProviderSelection")
 
+    if result.get("success") is False:
+        raise Exception("Bid " + bid_id + " could not be parametrized: " + result.get("errors"))
     print("Parametrize bid " + bid_id + ": OK")
+
     return bid_id
 
 
@@ -99,6 +96,6 @@ def get_bid(bid_id: str) -> helpling_schema.CustomerBid:
 
 
 if __name__ == "__main__":
-    new_bid = create_bid(10179, time="11:30")
+    new_bid = create_bid(10179, time="11:30", date="30/11/2019")
     # get_bid(new_bid)
     print(get_candidates_for_bid(new_bid))
