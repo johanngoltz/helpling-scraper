@@ -1,10 +1,12 @@
-from typing import List
+from typing import List, Dict
 
 import requests
 from sgqlc.endpoint.http import HTTPEndpoint
 from sgqlc.operation import Operation
 
 import helpling_schema
+
+CandidateList = List[helpling_schema.DecoratedPotentialCandidateEdge]
 
 BASE_URL = "https://www.helpling.de/api/"
 
@@ -95,7 +97,17 @@ def get_bid(bid_id: str) -> helpling_schema.CustomerBid:
     return (op + data).customer_bid
 
 
+def candidates(postcodes: List[int], parameters: Dict = None) -> List[CandidateList]:
+    """
+    Find potential candidates for a list of postcodes.
+    :param postcodes:
+    :param parameters: see DEFAULT_SEARCH_PARAMETERS
+    """
+    parameters = parameters or {}
+    for postcode in postcodes:
+        yield get_candidates_for_bid(create_bid(postcode, **parameters))
+
+
 if __name__ == "__main__":
-    new_bid = create_bid(10179, time="11:30", date="30/11/2019")
-    # get_bid(new_bid)
-    print(get_candidates_for_bid(new_bid))
+    for c in candidates([90425], {"date": "30/11/2019"}):
+        print(c)
