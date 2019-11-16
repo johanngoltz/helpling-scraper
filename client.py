@@ -31,7 +31,7 @@ class TransitionBidToProviderSelection:
 
 def create_bid(postcode: int, **kwargs) -> str:
     """
-    Query the helpling API to create a new bid and return its code.
+    Query the helpling API to create a new bid. Then, set the given parameters (or default values) to it.
     This is the first step to scraping offers for a region.
     :param postcode: The postcode for which to request a new bid
     :param kwargs: The parameters to set for the search.
@@ -47,7 +47,6 @@ def create_bid(postcode: int, **kwargs) -> str:
 
     variable_defaults = TransitionBidToProviderSelection().__dict__
     response = requests.post(BASE_URL + "/v2/rr", json={
-        "operationName": "transitionBidToProviderSelection",
         "query": transition_to_provider_selection,
         "variables": {**variable_defaults, **kwargs, "bidCode": bid_id}
     })
@@ -60,6 +59,12 @@ def create_bid(postcode: int, **kwargs) -> str:
 
 
 def get_candidates_for_bid(bid_id: str) -> List[helpling_schema.DecoratedPotentialCandidateEdge]:
+    """
+    Query the API for all (i.e. the first 1000) candidates for a given bid. The bid must have been parametrized already.
+    Note that not all fields are actually requested from the backend.
+    :param bid_id: Id of an already-parametrized bid
+    :return: First 1000 candidates available for the bid
+    """
     op = Operation(helpling_schema.Query)
 
     candidates = op.customer_bid(code=bid_id).potential_candidates(first=1000)
@@ -80,6 +85,11 @@ def get_candidates_for_bid(bid_id: str) -> List[helpling_schema.DecoratedPotenti
 
 
 def get_bid(bid_id: str) -> helpling_schema.CustomerBid:
+    """
+    Get basic information on the given bid.
+    :param bid_id: Id of a bid, parametrized or not.
+    :return:
+    """
     op = Operation(helpling_schema.Query)
 
     op.customer_bid(code=bid_id).__fields__("code", "duration", "start_time")
