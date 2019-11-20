@@ -3,6 +3,7 @@ from typing import List, Dict
 import requests
 from sgqlc.endpoint.http import HTTPEndpoint
 from sgqlc.operation import Operation
+from tabulate import tabulate
 
 import helpling_schema
 
@@ -97,7 +98,7 @@ def get_bid(bid_id: str) -> helpling_schema.CustomerBid:
     return (op + data).customer_bid
 
 
-def candidates(postcodes: List[int], parameters: Dict = None) -> List[CandidateList]:
+def get_candidates(postcodes: List[int], parameters: Dict = None) -> List[CandidateList]:
     """
     Find potential candidates for a list of postcodes.
     :param postcodes:
@@ -109,5 +110,11 @@ def candidates(postcodes: List[int], parameters: Dict = None) -> List[CandidateL
 
 
 if __name__ == "__main__":
-    for c in candidates([90425], {"date": "30/11/2019"}):
-        print(c)
+    for c in get_candidates([90425], {"date": "30/11/2019"}):
+        as_dicts = [{"price_per_hour": c.node.price_per_hour, **c.node.provider.__dict__} for c in c]
+        for d in as_dicts:
+            d.pop("__selection_list__")
+            d.pop("__fields_cache__")
+            d.pop("__json_data__")
+
+        print(tabulate(as_dicts))
